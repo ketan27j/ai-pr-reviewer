@@ -85,7 +85,7 @@ iteration. Failing the same gate three iterations in a row halts the loop and su
 | **G1 Skill** | Did we load `agentic-swe-master` + router + the loop's required skill? Did we log `skills considered: […]; chose: X`? | Log line in checkpoint | Halt iter, force load, retry |
 | **G2 Progress** | Did this iter measurably move the milestone forward? (file diff, test added, error count down, knowledge filed) | ≥1 quantified delta | Strike. 3 strikes → halt loop |
 | **G3 Cost** | Tokens + tool calls under per-loop budget? | Under cap | Halt loop, surface |
-| **G4 Quality** | `{{TYPECHECK_CMD}}` clean AND `{{TEST_CMD}}` green AND lint clean for files touched? | All checks pass | Spawn L2 DEBUG, retry |
+| **G4 Quality** | `python -m mypy backend` clean AND `python -m pytest backend/tests -q` green AND `python -m ruff check backend` clean for files touched? Plus the milestone's own demo command from PLAN.md exits 0. | All checks pass | Spawn L2 DEBUG, retry |
 | **G5 Verify** | Independent checker (different model OR fresh context) approves the artifact against the milestone spec? | APPROVE verdict + reasoning | Spawn L2 DEBUG with feedback, retry once |
 
 Gates are **computed, not narrated** — run the command, paste the exit code. No checkpoint block = the iteration didn't happen.
@@ -355,7 +355,7 @@ pass: read every wiki page, flag stale entries, surface gaps. Write findings to 
 - Edit `DONE.html` or `PLAN.md` without explicit user request.
 - Invent gate results — gates are computed (run the command, paste the exit code), not narrated.
 - Continue past iteration cap or budget without surfacing.
-- Touch files outside the per-milestone freeze boundary ({{FREEZE_BOUNDARY}}).
+- Touch files outside the per-milestone freeze boundary (the milestone's **Files** list in PLAN.md; repo-wide bound is `backend/**`, `frontend/**`, `scripts/**` per `context-graph.json.freeze_boundary`).
 
 ---
 
@@ -363,7 +363,11 @@ pass: read every wiki page, flag stale entries, surface gaps. Write findings to 
 
 - Loops that self-modify these gate definitions.
 - Auto-fix in L5 HEALTH.
-- {{OUT_OF_SCOPE}}
+- Provisioning or paying for external accounts (Tiger Cloud, LLM keys, GitHub App). M8 lists these as prerequisites; a loop must halt and surface, never sign up or spend on the user's behalf.
+- Posting a review to any real GitHub PR before M8, or to any repo other than the designated throwaway.
+- Committing, pushing, or opening PRs unless explicitly asked.
+- Writing any credential into a tracked file — `.env` only, never source, never `.genesis/`.
+- Relaxing a `context-graph.json` invariant to make a gate pass. Invariants change by user decision, not by loop convenience.
 
 ---
 

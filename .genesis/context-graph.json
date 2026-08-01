@@ -1,13 +1,254 @@
 {
-  "$comment": "nodes=modules, edges=[cause,effect] where cause is imported-by effect. ADD invariants by hand.",
-  "project": ".",
-  "generated": "2026-07-31T16:29:52.686Z",
-  "nodes": [],
-  "edges": [],
+  "$comment": "nodes=modules, edges=[cause,effect] where cause is imported-by effect. Nodes/edges SEEDED BY HAND from the G0 architecture (repo was empty; graphizer found 0 nodes). Invariants are hand-written health rules. WARNING: `graphizer.mjs --write` overwrites this whole file including invariants \u2014 use scripts/regraph.sh instead.",
+  "project": "ai-pr-reviewer",
+  "generated": "2026-07-31T18:45:27.586Z",
+  "nodes": [
+    "arq_worker",
+    "base_agent",
+    "circuit_breaker",
+    "context_retriever",
+    "contracts",
+    "db_models",
+    "docs_agent",
+    "embedder",
+    "enums",
+    "events",
+    "exceptions",
+    "findings",
+    "github_client",
+    "graph",
+    "idempotency",
+    "langgraph_engine",
+    "llm_client",
+    "model_router",
+    "nodes",
+    "parser",
+    "postgres",
+    "quality_agent",
+    "repository",
+    "retry",
+    "review",
+    "reviews",
+    "router",
+    "schemas",
+    "security_agent",
+    "state",
+    "test_agent",
+    "tiger_client",
+    "timeout",
+    "validator",
+    "webhook",
+    "workflow_context",
+    "workflow_engine"
+  ],
+  "edges": [
+    [
+      "enums",
+      "findings"
+    ],
+    [
+      "findings",
+      "contracts"
+    ],
+    [
+      "findings",
+      "review"
+    ],
+    [
+      "contracts",
+      "base_agent"
+    ],
+    [
+      "base_agent",
+      "security_agent"
+    ],
+    [
+      "base_agent",
+      "quality_agent"
+    ],
+    [
+      "base_agent",
+      "test_agent"
+    ],
+    [
+      "base_agent",
+      "docs_agent"
+    ],
+    [
+      "llm_client",
+      "base_agent"
+    ],
+    [
+      "context_retriever",
+      "base_agent"
+    ],
+    [
+      "events",
+      "base_agent"
+    ],
+    [
+      "model_router",
+      "llm_client"
+    ],
+    [
+      "retry",
+      "llm_client"
+    ],
+    [
+      "circuit_breaker",
+      "llm_client"
+    ],
+    [
+      "timeout",
+      "llm_client"
+    ],
+    [
+      "retry",
+      "github_client"
+    ],
+    [
+      "circuit_breaker",
+      "github_client"
+    ],
+    [
+      "timeout",
+      "github_client"
+    ],
+    [
+      "embedder",
+      "context_retriever"
+    ],
+    [
+      "tiger_client",
+      "context_retriever"
+    ],
+    [
+      "postgres",
+      "tiger_client"
+    ],
+    [
+      "postgres",
+      "events"
+    ],
+    [
+      "postgres",
+      "repository"
+    ],
+    [
+      "db_models",
+      "repository"
+    ],
+    [
+      "workflow_context",
+      "events"
+    ],
+    [
+      "state",
+      "graph"
+    ],
+    [
+      "nodes",
+      "graph"
+    ],
+    [
+      "contracts",
+      "nodes"
+    ],
+    [
+      "events",
+      "nodes"
+    ],
+    [
+      "github_client",
+      "nodes"
+    ],
+    [
+      "graph",
+      "langgraph_engine"
+    ],
+    [
+      "workflow_engine",
+      "langgraph_engine"
+    ],
+    [
+      "langgraph_engine",
+      "arq_worker"
+    ],
+    [
+      "workflow_engine",
+      "arq_worker"
+    ],
+    [
+      "webhook",
+      "parser"
+    ],
+    [
+      "validator",
+      "router"
+    ],
+    [
+      "parser",
+      "router"
+    ],
+    [
+      "idempotency",
+      "router"
+    ],
+    [
+      "router",
+      "reviews"
+    ],
+    [
+      "repository",
+      "reviews"
+    ],
+    [
+      "schemas",
+      "reviews"
+    ]
+  ],
   "invariants": {
-    "$TODO": "Add 2-3 health rules, e.g. \"API latency < 200ms\", \"domain imports no framework\"."
+    "dependency_direction_inward": {
+      "rule": "core/ imports nothing from the project. Outer modules import inward only. No module outside orchestrator/langgraph_engine.py may import langgraph; no module outside memory/ and database/ may import asyncpg or sqlalchemy. Zero import cycles.",
+      "why": "ADR-002 modular monolith + the ADR-001 seam. If langgraph leaks past langgraph_engine.py, the Temporal swap stops being a one-file change.",
+      "check": "python -m pytest backend/tests/architecture -q",
+      "phase": "1"
+    },
+    "every_outbound_call_bounded": {
+      "rule": "Every call leaving the process \u2014 LLM provider, GitHub API, Postgres, Redis \u2014 has an explicit timeout AND retry-with-backoff AND circuit breaker. No bare await on a network client.",
+      "why": "L8 tool/API-timeout and orchestration-deadlock modes. An unbounded call is how the aggregator join hangs forever.",
+      "check": "python -m pytest backend/tests/reliability/test_all_outbound_bounded.py -q",
+      "phase": "12"
+    },
+    "no_finding_without_evidence": {
+      "rule": "Every Finding has a non-empty rationale, a confidence in [0.0,1.0], and a file_path/line that resolves to a line actually present in the PR diff or in retrieved context. A finding about a file the agent never saw is rejected before it reaches the aggregator.",
+      "why": "L4/L6. This is the hallucination-in-critical-path defense made computable \u2014 it is what makes a finding disputable instead of merely confident.",
+      "check": "python -m pytest backend/tests/contracts/test_finding_grounding.py -q",
+      "phase": "5"
+    },
+    "every_action_emits_an_event": {
+      "rule": "No LLM call, tool call, or agent span completes without a matching agent_events row carrying cost_usd, latency_ms, model, and span_id/parent_span. The events table is append-only \u2014 no UPDATE or DELETE against agent_events anywhere in the codebase.",
+      "why": "L6. If the system cannot show its work it has not done the work; the trace viewer, audit trail, and cost ledger are all one query against this table.",
+      "check": "bash scripts/demo/m6_events.sh --assert-parity",
+      "phase": "10"
+    },
+    "budget_guard_blocks_before_spend": {
+      "rule": "BudgetGuard reads the day's running cost from agent_health_1m at the top of every agent run and hard-blocks BEFORE the LLM call when the daily cap is exceeded. Never after.",
+      "why": "ADR-004. A cost check that runs after the call is a cost report, not a cap.",
+      "check": "python -m pytest backend/tests/economics/test_budget_guard.py -q",
+      "phase": "16"
+    },
+    "untrusted_input_never_gains_instruction_authority": {
+      "rule": "PR diff content and retrieved code chunks are wrapped as data under an explicit instruction hierarchy; they can never introduce, override, or terminate system instructions. The injection guard runs on every specialist prompt.",
+      "why": "The trust boundary from G0 \u2014 the diff is attacker-controlled and flows straight into four LLM prompts.",
+      "check": "python -m pytest backend/tests/security/test_injection_guard.py -q",
+      "phase": "11"
+    }
   },
   "freeze_boundary": [
-    "src/**"
-  ]
+    "backend/**",
+    "frontend/**",
+    "scripts/**"
+  ],
+  "seeded_by": "hand (G2) from the architecture study; re-derive from imports once backend/ has code"
 }
